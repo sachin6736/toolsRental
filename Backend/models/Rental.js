@@ -11,9 +11,9 @@ const rentalSchema = new mongoose.Schema({
       tool: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Tools',
-        required: true,
+        required: true,     
       },
-      count: {
+      count: {     
         type: Number,
         required: true,
         min: 1,
