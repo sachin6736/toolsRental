@@ -6,7 +6,7 @@ import { PuffLoader } from 'react-spinners';
 import { debounce } from 'lodash';
 import { useNavigate } from 'react-router-dom';
 
-const API = 'http://localhost:5000';
+const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 const ViewRentals = () => {
   const [rentals, setRentals] = useState([]);

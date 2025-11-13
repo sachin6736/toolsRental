@@ -7,7 +7,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
-const API = 'http://localhost:5000';
+const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 // Helper function to calculate number of calendar days
 const calculateCalendarDays = (startDate, endDate) => {

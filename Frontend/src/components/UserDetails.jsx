@@ -5,7 +5,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { User, Home, Phone, IdCard, Briefcase, ArrowLeft, Package, Calendar, IndianRupee, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { PuffLoader } from 'react-spinners';
 
-const API = 'http://localhost:5000';
+const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 const UserDetails = () => {
   const { id } = useParams();

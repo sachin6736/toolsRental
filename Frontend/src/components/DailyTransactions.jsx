@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { PuffLoader } from "react-spinners";
 
-const API = "http://localhost:5000";
+const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 const CATEGORY_OPTIONS = [
   "Rent & Utilities",

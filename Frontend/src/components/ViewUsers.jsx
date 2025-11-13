@@ -5,7 +5,7 @@ import { Search, User, Phone, IdCard, Briefcase, Pencil, X, Home, IndianRupee } 
 import { PuffLoader } from 'react-spinners';
 import { Link, useNavigate } from 'react-router-dom';
 
-const API = 'http://localhost:5000';
+const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 const debounce = (func, wait) => {
   let timeout;

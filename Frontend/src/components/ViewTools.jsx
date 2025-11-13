@@ -4,7 +4,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { Search, Wrench, Package, Pencil, X, IndianRupee } from 'lucide-react';
 import { PuffLoader } from 'react-spinners';
 
-const API = 'http://localhost:5000';
+const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 const debounce = (func, wait) => {
   let timeout;
