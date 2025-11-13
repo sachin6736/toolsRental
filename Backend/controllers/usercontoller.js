@@ -3,26 +3,27 @@ import User from '../models/user.js';
 import Rental from '../models/rental.js';
 import DailyTransaction from '../models/dailyTransaction.js';
 import multer from 'multer';
+import upload from '../utils/upload.js';
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'Uploads/');
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
-  },
-});
-const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only images are allowed'), false);
-    }
-  },
-});
+// const storage = multer.diskStorage({
+//   destination: (req, file, cb) => {
+//     cb(null, 'Uploads/');
+//   },
+//   filename: (req, file, cb) => {
+//     cb(null, `${Date.now()}-${file.originalname}`);
+//   },
+// });
+// const upload = multer({
+//   storage,
+//   limits: { fileSize: 5 * 1024 * 1024 },
+//   fileFilter: (req, file, cb) => {
+//     if (file.mimetype.startsWith('image/')) {
+//       cb(null, true);
+//     } else {
+//       cb(new Error('Only images are allowed'), false);
+//     }
+//   },
+// });
 
 // Helper function to get or create a DailyTransaction for a specific date
 const getOrCreateDailyTransaction = async (dateStr) => {
@@ -42,27 +43,15 @@ export const createUser = [
   async (req, res) => {
     try {
       const { name, adress, phone, aadhar, profession } = req.body;
-      const aadharImage = req.file ? `/Uploads/${req.file.filename}` : undefined;
+      const aadharImage = req.file ? req.file.path : undefined; // Cloudinary URL
 
-      // Validate required fields
-      if (!name || !phone) {
-        return res.status(400).json({ message: 'Name and phone are required' });
-      }
-      if (!/^[0-9]{10}$/.test(phone)) {
-        return res.status(400).json({ message: 'Phone number must be 10 digits' });
-      }
-      if (aadhar && !/^[0-9]{12}$/.test(aadhar)) {
-        return res.status(400).json({ message: 'Aadhar number must be 12 digits' });
-      }
+      if (!name || !phone) return res.status(400).json({ message: 'Name and phone are required' });
+      if (!/^[0-9]{10}$/.test(phone)) return res.status(400).json({ message: 'Phone number must be 10 digits' });
+      if (aadhar && !/^[0-9]{12}$/.test(aadhar)) return res.status(400).json({ message: 'Aadhar number must be 12 digits' });
 
-      // Set aadhar to null if empty
-      const aadharValue = aadhar && aadhar.trim() !== '' ? aadhar : null;
+      const aadharValue = aadhar?.trim() ? aadhar : null;
 
-      // Check for existing user
-      const existingUser = await User.findOne({
-        $or: [{ phone }, { aadhar: aadharValue }],
-      });
-
+      const existingUser = await User.findOne({ $or: [{ phone }, { aadhar: aadharValue }] });
       if (existingUser) {
         return res.status(400).json({
           message: existingUser.phone === phone
@@ -71,15 +60,7 @@ export const createUser = [
         });
       }
 
-      const newUser = new User({
-        name,
-        adress,
-        phone,
-        aadhar: aadharValue,
-        aadharImage,
-        profession,
-      });
-
+      const newUser = new User({ name, adress, phone, aadhar: aadharValue, aadharImage, profession });
       await newUser.save();
       res.status(201).json({ message: 'User created successfully', user: newUser });
     } catch (error) {
@@ -145,28 +126,15 @@ export const updateUser = [
     try {
       const { id } = req.params;
       const { name, adress, phone, aadhar, profession } = req.body;
-      const aadharImage = req.file ? `/Uploads/${req.file.filename}` : undefined;
+      const aadharImage = req.file ? req.file.path : undefined;
 
-      // Validate required fields
-      if (!name || !phone) {
-        return res.status(400).json({ message: 'Name and phone are required' });
-      }
-      if (!/^[0-9]{10}$/.test(phone)) {
-        return res.status(400).json({ message: 'Phone number must be 10 digits' });
-      }
-      if (aadhar && !/^[0-9]{12}$/.test(aadhar)) {
-        return res.status(400).json({ message: 'Aadhar number must be 12 digits' });
-      }
+      if (!name || !phone) return res.status(400).json({ message: 'Name and phone are required' });
+      if (!/^[0-9]{10}$/.test(phone)) return res.status(400).json({ message: 'Phone number must be 10 digits' });
+      if (aadhar && !/^[0-9]{12}$/.test(aadhar)) return res.status(400).json({ message: 'Aadhar number must be 12 digits' });
 
-      // Set aadhar to null if empty
-      const aadharValue = aadhar && aadhar.trim() !== '' ? aadhar : null;
+      const aadharValue = aadhar?.trim() ? aadhar : null;
 
-      // Check for existing user with same phone or aadhar (excluding current user)
-      const existingUser = await User.findOne({
-        $or: [{ phone }, { aadhar: aadharValue }],
-        _id: { $ne: id },
-      });
-
+      const existingUser = await User.findOne({ $or: [{ phone }, { aadhar: aadharValue }], _id: { $ne: id } });
       if (existingUser) {
         return res.status(400).json({
           message: existingUser.phone === phone
@@ -175,26 +143,11 @@ export const updateUser = [
         });
       }
 
-      // Update user
-      const updateData = {
-        name,
-        adress,
-        phone,
-        aadhar: aadharValue,
-        profession,
-      };
-      if (aadharImage) {
-        updateData.aadharImage = aadharImage;
-      }
+      const updateData = { name, adress, phone, aadhar: aadharValue, profession };
+      if (aadharImage) updateData.aadharImage = aadharImage;
 
-      const updatedUser = await User.findByIdAndUpdate(id, updateData, {
-        new: true,
-        runValidators: true,
-      });
-
-      if (!updatedUser) {
-        return res.status(404).json({ message: 'User not found' });
-      }
+      const updatedUser = await User.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
+      if (!updatedUser) return res.status(404).json({ message: 'User not found' });
 
       res.status(200).json({ message: 'User updated successfully', user: updatedUser });
     } catch (error) {
