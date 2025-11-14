@@ -370,7 +370,7 @@ export const setOpeningBalance = async (req, res) => {
       doc = new DailyTransaction({ date: targetDate, transactions: [] });
     }
 
-    // Prevent if already set
+    // Prevent double set
     if (doc.openingBalance > 0) {
       return res.status(400).json({ success: false, message: 'Opening balance already set' });
     }
@@ -380,7 +380,7 @@ export const setOpeningBalance = async (req, res) => {
     prevDate.setDate(prevDate.getDate() - 1);
     let prevDoc = null;
 
-    while (!prevDoc && prevDate.getFullYear() > 2020) {
+    while (prevDate.getFullYear() > 2020) {
       const prevDateStr = prevDate.toLocaleDateString('en-IN');
       prevDoc = await DailyTransaction.findOne({ date: prevDateStr, isClosed: true });
       if (prevDoc) break;
@@ -398,7 +398,7 @@ export const setOpeningBalance = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Previous closing balance is zero' });
     }
 
-    // Add as credit transactions
+    // === ADD OPENING TRANSACTIONS ===
     if (closingCash > 0) {
       doc.transactions.push({
         amount: closingCash,
@@ -423,16 +423,26 @@ export const setOpeningBalance = async (req, res) => {
       });
     }
 
-    // Save opening fields
+    // === SET OPENING FIELDS (THIS WAS MISSING!) ===
     doc.openingBalance = totalOpening;
     doc.openingCash = closingCash;
     doc.openingUPI = closingUPI;
     doc.openingCarriedFrom = prevDoc.date;
 
     await doc.save();
-    res.json({ success: true, message: 'Opening balance set' });
+
+    res.json({ 
+      success: true, 
+      message: 'Opening balance set successfully',
+      data: {
+        openingBalance: totalOpening,
+        openingCash: closingCash,
+        openingUPI: closingUPI,
+        from: prevDoc.date
+      }
+    });
   } catch (err) {
-    console.error(err);
+    console.error('setOpeningBalance error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };

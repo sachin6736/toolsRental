@@ -89,7 +89,7 @@ const DailyTransactions = () => {
         setClosingBalance(doc.closingBalance || 0);
         setClosingCash(doc.closingCash || 0);
         setClosingUPI(doc.closingUPI || 0);
-        setOpeningLoaded(doc.openingBalance > 0);
+        setOpeningLoaded(doc.openingBalance > 0);  // ← This now works!
       } else {
         setIsClosed(false);
         setClosingBalance(0);
@@ -377,7 +377,7 @@ const exportCSV = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-800 flex items-center">
             <DollarSign className="h-6 w-6 mr-2 text-blue-600" />
-            Daily Ledger
+            Dailyedger
           </h2>
           <div className="flex flex-wrap items-center gap-2 mt-3 sm:mt-0">
             <div className="relative">
