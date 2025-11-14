@@ -11,13 +11,12 @@ import {
   ChevronDown,
   ChevronRight,
   Lock,
-  Unlock,
   Wallet,
-  Minus
+  Minus,
 } from "lucide-react";
 import { PuffLoader } from "react-spinners";
 
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API = "http://localhost:5000";
 
 const CATEGORY_OPTIONS = [
   "Rent & Utilities",
@@ -47,8 +46,6 @@ const DailyTransactions = () => {
   const [closingBalance, setClosingBalance] = useState(0);
   const [closingCash, setClosingCash] = useState(0);
   const [closingUPI, setClosingUPI] = useState(0);
-
-  // Opening balance
   const [openingLoaded, setOpeningLoaded] = useState(false);
   const [prevClosing, setPrevClosing] = useState(null);
 
@@ -72,7 +69,7 @@ const DailyTransactions = () => {
     notes: "",
   });
 
-  // ---------- FETCH ----------
+  // ========== FETCH TRANSACTIONS ==========
   const fetchTx = async (date) => {
     setIsLoading(true);
     try {
@@ -89,7 +86,7 @@ const DailyTransactions = () => {
         setClosingBalance(doc.closingBalance || 0);
         setClosingCash(doc.closingCash || 0);
         setClosingUPI(doc.closingUPI || 0);
-        setOpeningLoaded(doc.openingBalance > 0);  // ← This now works!
+        setOpeningLoaded(doc.openingBalance > 0);
       } else {
         setIsClosed(false);
         setClosingBalance(0);
@@ -114,7 +111,7 @@ const DailyTransactions = () => {
     fetchTx(selectedDate);
   }, [selectedDate]);
 
-  // ---------- BALANCE ----------
+  // ========== BALANCE CALCULATIONS ==========
   const {
     cashBalance,
     upiBalance,
@@ -154,7 +151,7 @@ const DailyTransactions = () => {
     };
   }, [transactions]);
 
-  // ---------- GROUPED DATA ----------
+  // ========== GROUPED LEDGER DATA ==========
   const grouped = useMemo(() => {
     const flat = transactions
       .flatMap((d) => d.transactions.map((t) => ({ ...t, date: d.date })))
@@ -172,7 +169,7 @@ const DailyTransactions = () => {
     return groups;
   }, [transactions]);
 
-  // ---------- FIND PREVIOUS CLOSING ----------
+  // ========== FIND PREVIOUS CLOSED DAY ==========
   const findPreviousClosing = async () => {
     let date = new Date(selectedDate);
     date.setDate(date.getDate() - 1);
@@ -196,13 +193,13 @@ const DailyTransactions = () => {
     return null;
   };
 
-  // ---------- SET OPENING BALANCE ----------
+  // ========== SET OPENING BALANCE ==========
   const setOpeningBalance = async () => {
     try {
       const res = await fetch(`${API}/dailytransactions/opening-balance`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: selectedDate }),
+        body: JSON.stringify({ date: selectedDate }), // ← This is correct: "2025-11-15"
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.message);
@@ -215,9 +212,9 @@ const DailyTransactions = () => {
     }
   };
 
-  // ---------- MODAL HANDLERS ----------
+  // ========== SUBMIT DEBIT ==========
   const submitDebit = async () => {
-    if (isClosed) return toast.warn("Day is closed. Undo closing to add debit.");
+    if (isClosed) return toast.warn("Day is closed. Cannot add debit.");
     const amount = parseFloat(debitForm.amount);
     if (!amount || !debitForm.category) return toast.warn("Amount & Category required");
     const available = debitForm.paymentMethod === "Cash" ? cashBalance : upiBalance;
@@ -242,8 +239,9 @@ const DailyTransactions = () => {
     }
   };
 
+  // ========== SUBMIT CREDIT ==========
   const submitCredit = async () => {
-    if (isClosed) return toast.warn("Day is closed. Undo closing to add credit.");
+    if (isClosed) return toast.warn("Day is closed. Cannot add credit.");
     const amount = parseFloat(creditForm.amount);
     if (!amount) return toast.warn("Enter valid amount");
 
@@ -265,8 +263,9 @@ const DailyTransactions = () => {
     }
   };
 
+  // ========== SUBMIT TRANSFER ==========
   const submitTransfer = async () => {
-    if (isClosed) return toast.warn("Day is closed. Undo closing to transfer.");
+    if (isClosed) return toast.warn("Day is closed. Cannot transfer.");
     const amount = parseFloat(transferForm.amount);
     if (!amount || amount <= 0) return toast.warn("Enter valid amount");
     const available = transferForm.from === "Cash" ? cashBalance : upiBalance;
@@ -290,7 +289,7 @@ const DailyTransactions = () => {
     }
   };
 
-  // ---------- CLOSING HANDLERS ----------
+  // ========== CLOSE DAY (FINAL) ==========
   const closeDay = async () => {
     try {
       const res = await fetch(`${API}/dailytransactions/close`, {
@@ -300,84 +299,67 @@ const DailyTransactions = () => {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.message);
-      toast.success("Day closed");
+      toast.success("Day closed – balance is now FINAL");
+      setShowClosingModal(false);
       fetchTx(selectedDate);
     } catch (err) {
       toast.error(err.message || "Failed to close day");
     }
   };
 
-  const undoClose = async () => {
-    try {
-      const res = await fetch(`${API}/dailytransactions/undo-close`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: selectedDate }),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.message);
-      toast.success("Undo successful");
-      fetchTx(selectedDate);
-    } catch (err) {
-      toast.error(err.message || "Failed to undo");
-    }
+  // ========== EXPORT CSV ==========
+  const exportCSV = () => {
+    const rows = [
+      ["Side", "Method", "Type", "Amount", "Category", "Time"],
+    ];
+
+    transactions.forEach((d) =>
+      d.transactions.forEach((tx) => {
+        const side = tx.type === "debit" ? "Debit" : "Credit";
+        rows.push([
+          side,
+          tx.paymentMethod,
+          tx.type === "debit" ? "Expense" : tx.type,
+          tx.amount.toFixed(2),
+          tx.category || "",
+          new Date(tx.createdAt).toLocaleTimeString("en-IN", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        ]);
+      })
+    );
+
+    const csv = rows.map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ledger_${selectedDate}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
-
-  // ---------- CSV ----------
-// ---------- CSV ----------
-const exportCSV = () => {
-  const rows = [
-    ["Side", "Method", "Type", "Amount", "Category", "Time"], // ← Removed Description, Notes
-  ];
-
-  transactions.forEach((d) =>
-    d.transactions.forEach((tx) => {
-      const side = tx.type === "debit" ? "Debit" : "Credit";
-      rows.push([
-        side,
-        tx.paymentMethod,
-        tx.type === "debit" ? "Expense" : tx.type,
-        tx.amount.toFixed(2),
-        tx.category || "",
-        new Date(tx.createdAt).toLocaleTimeString("en-IN", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      ]);
-    })
-  );
-
-  const csv = rows.map((r) => r.join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `ledger_${selectedDate}.csv`;
-  a.click();
-  URL.revokeObjectURL(url); // Clean up
-};
 
   const toggleGroup = (cat) => {
     setExpandedGroups((prev) => ({ ...prev, [cat]: !prev[cat] }));
   };
 
-  // ---------- RENDER ----------
+  // ========== RENDER ==========
   return (
     <div className="min-h-screen bg-gray-50 pt-16 md:pl-48">
-  <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto"></div>
-      <ToastContainer />
-      {isLoading && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <PuffLoader color="#2563eb" />
-        </div>
-      )}
-  
-      {/* Header */}
-      <div className="max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+        <ToastContainer />
+        {isLoading && (
+          <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+            <PuffLoader color="#2563eb" />
+          </div>
+        )}
+
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-800 flex items-center">
             <DollarSign className="h-6 w-6 mr-2 text-blue-600" />
-            Dailyedger
+            Daily Ledger
           </h2>
           <div className="flex flex-wrap items-center gap-2 mt-3 sm:mt-0">
             <div className="relative">
@@ -389,25 +371,25 @@ const exportCSV = () => {
                 className="pl-10 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
               />
             </div>
-  
-            {/* SET OPENING BALANCE BUTTON */}
+
+            {/* Set Opening Balance */}
             {!isClosed && !openingLoaded && (
               <button
-                onClick={async () => {
-                  const prev = await findPreviousClosing();
-                  if (prev) {
-                    setPrevClosing(prev);
-                    setShowOpeningModal(true);
-                  } else {
-                    toast.warn("No previous closed day found to carry forward.");
-                  }
-                }}
-                className="flex items-center gap-1 bg-indigo-600 text-white px-3 py-2 rounded-md text-sm hover:bg-indigo-700"
-              >
-                <Wallet className="h-4 w-4" /> Set Opening Balance
-              </button>
+              onClick={async () => {
+                const prev = await findPreviousClosing();
+                if (prev) {
+                  setPrevClosing(prev);
+                  setShowOpeningModal(true);
+                } else {
+                  toast.warn("No previous closed day found to carry forward.");
+                }
+              }}
+              className="flex items-center gap-1 bg-indigo-600 text-white px-3 py-2 rounded-md text-sm hover:bg-indigo-700"
+            >
+              <Wallet className="h-4 w-4" /> Set Opening Balance
+            </button>
             )}
-  
+
             <button
               onClick={() => !isClosed && setShowDebitModal(true)}
               disabled={isClosed}
@@ -419,7 +401,7 @@ const exportCSV = () => {
             >
               <Minus className="h-4 w-4" /> Cash Out
             </button>
-  
+
             <button
               onClick={() => !isClosed && setShowCreditModal(true)}
               disabled={isClosed}
@@ -431,7 +413,7 @@ const exportCSV = () => {
             >
               <Plus className="h-4 w-4" /> Cash In
             </button>
-  
+
             <button
               onClick={() => !isClosed && setShowTransferModal(true)}
               disabled={isClosed}
@@ -443,7 +425,7 @@ const exportCSV = () => {
             >
               <ArrowRightLeft className="h-4 w-4" /> Cash Transfer
             </button>
-  
+
             <button
               onClick={exportCSV}
               className="flex items-center gap-1 bg-blue-600 text-white px-3 py-2 rounded-md text-sm hover:bg-blue-700"
@@ -452,11 +434,11 @@ const exportCSV = () => {
             </button>
           </div>
         </div>
-  
-        {/* Summary */}
+
+        {/* Summary Cards */}
         <div className="bg-white rounded-lg shadow border p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 text-center">
-            {/* OPENING BALANCE */}
+            {/* Opening Balance */}
             <div>
               <p className="text-sm text-gray-600">Opening Balance</p>
               <p className="text-xl font-bold text-indigo-600">
@@ -468,8 +450,8 @@ const exportCSV = () => {
                 </p>
               )}
             </div>
-  
-            {/* AVAILABLE BALANCE */}
+
+            {/* Available Balance */}
             <div className="flex items-center justify-center gap-2">
               <Wallet className="h-5 w-5 text-blue-700" />
               <div>
@@ -479,8 +461,8 @@ const exportCSV = () => {
                 </p>
               </div>
             </div>
-  
-            {/* CASH */}
+
+            {/* Cash */}
             <div>
               <p className="text-sm text-gray-600">Cash</p>
               <p className={`text-xl font-bold ${cashBalance >= 0 ? "text-green-600" : "text-red-600"}`}>
@@ -490,7 +472,7 @@ const exportCSV = () => {
                 In: ₹{(cashCredit || 0).toFixed(2)} | Out: ₹{(cashDebit || 0).toFixed(2)}
               </p>
             </div>
-  
+
             {/* UPI */}
             <div>
               <p className="text-sm text-gray-600">UPI</p>
@@ -501,8 +483,8 @@ const exportCSV = () => {
                 In: ₹{(upiCredit || 0).toFixed(2)} | Out: ₹{(upiDebit || 0).toFixed(2)}
               </p>
             </div>
-  
-            {/* CLOSING BALANCE */}
+
+            {/* Closing Balance */}
             <div>
               <p className="text-sm text-gray-600">Closing Balance</p>
               <p className="text-xl font-bold text-purple-600">
@@ -516,8 +498,8 @@ const exportCSV = () => {
             </div>
           </div>
         </div>
-  
-        {/* LEDGER */}
+
+        {/* Ledger Table */}
         <div className="bg-white rounded-lg shadow border overflow-hidden">
           {Object.keys(grouped).length === 0 ? (
             <p className="p-6 text-center text-gray-500">No transactions for this date.</p>
@@ -527,7 +509,7 @@ const exportCSV = () => {
               const debitTotal = data.debit.reduce((s, t) => s + t.amount, 0);
               const creditTotal = data.credit.reduce((s, t) => s + t.amount, 0);
               const maxRows = Math.max(data.debit.length, data.credit.length, 1);
-  
+
               return (
                 <div key={category} className="border-b last:border-b-0">
                   <button
@@ -543,7 +525,7 @@ const exportCSV = () => {
                       <span className="text-green-700">Credit: ₹{creditTotal.toFixed(2)}</span>
                     </div>
                   </button>
-  
+
                   {isOpen && (
                     <table className="w-full text-xs">
                       <thead>
@@ -596,7 +578,7 @@ const exportCSV = () => {
                               <td className="px-4 py-1.5 text-right font-medium text-red-700">
                                 {debit ? `₹${debit.amount.toFixed(2)}` : ""}
                               </td>
-  
+
                               <td className="px-4 py-1.5 text-gray-600">
                                 {credit
                                   ? new Date(credit.createdAt).toLocaleTimeString("en-IN", {
@@ -649,49 +631,32 @@ const exportCSV = () => {
             </div>
           </div>
         </div>
-  
-        {/* CLOSE / UNDO BUTTON WITH 45-MIN LOGIC */}
+
+        {/* FINAL CLOSE BUTTON */}
         <div className="mt-6 flex justify-center">
           {!isClosed ? (
             <button
               onClick={() => setShowClosingModal(true)}
               className="flex items-center gap-1 bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 text-lg font-semibold"
             >
-              <Lock className="h-5 w-5" /> Create Closing Balance
+              <Lock className="h-5 w-5" /> Create Final Closing Balance
             </button>
           ) : (
-            (() => {
-              const closedAt = transactions[0]?.closedAt;
-              const now = new Date();
-              const diffMins = closedAt ? (now - new Date(closedAt)) / (1000 * 60) : Infinity;
-  
-              const canUndo = diffMins <= 45;
-  
-              return canUndo ? (
-                <button
-                  onClick={undoClose}
-                  className="flex items-center gap-1 bg-orange-600 text-white px-6 py-3 rounded-md hover:bg-orange-700 text-lg font-semibold"
-                >
-                  <Unlock className="h-5 w-5" /> Undo Closing ({Math.floor(45 - diffMins)} min left)
-                </button>
-              ) : (
-                <div className="flex items-center gap-2 text-gray-500">
-                  <Lock className="h-5 w-5" />
-                  <span className="text-lg font-medium">Day Closed (Undo expired)</span>
-                </div>
-              );
-            })()
+            <div className="flex items-center gap-2 text-green-700 bg-green-50 px-6 py-3 rounded-md border border-green-200">
+              <Lock className="h-5 w-5" />
+              <span className="text-lg font-bold">DAY CLOSED – FINAL</span>
+            </div>
           )}
         </div>
       </div>
-  
+
       {/* ====================== MODALS ====================== */}
-  
+
       {/* CLOSING CONFIRMATION MODAL */}
       {showClosingModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold mb-4">Confirm Closing Balance</h3>
+            <h3 className="text-xl font-bold mb-4 text-red-700">FINAL CLOSING</h3>
             <div className="space-y-3 text-sm">
               <p>Closing for: <strong>{selectedDate}</strong></p>
               <p>Cash Balance: <strong className={cashBalance >= 0 ? "text-green-600" : "text-red-600"}>₹{cashBalance.toFixed(2)}</strong></p>
@@ -699,7 +664,9 @@ const exportCSV = () => {
               <p className="font-bold text-lg text-purple-600">
                 Total Closing: ₹{(cashBalance + upiBalance).toFixed(2)}
               </p>
-              <p className="text-xs text-amber-600">This action cannot be undone after 45 minutes.</p>
+              <p className="text-xs font-bold text-red-600">
+                This action is PERMANENT. No undo possible.
+              </p>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button
@@ -709,13 +676,10 @@ const exportCSV = () => {
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  closeDay();
-                  setShowClosingModal(false);
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                onClick={closeDay}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium"
               >
-                Confirm & Close
+                Confirm & Close FOREVER
               </button>
             </div>
           </div>
@@ -975,7 +939,7 @@ const exportCSV = () => {
         </div>
       )}
 
-      {/* DETAIL MODAL */}
+      {/* TRANSACTION DETAIL MODAL */}
       {selectedTx && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
